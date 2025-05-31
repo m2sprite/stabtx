@@ -14,10 +14,10 @@ global b32 VSYNC_ENABLED = true;
 global const s32 KEY_ESCAPE = 0;
 global b32 Running;
 
-b32 X11InitializeWindow( s32 *ScreenWidth, s32 ScreenHeight, Display *MainVideoDisplay, Window *MainWindow, GLXContext *MainRenderingContext )
+b32 X11InitializeWindow( s32 *ScreenWidth, s32 ScreenHeight, Display *Monitors, Window *MainWindow, GLXContext *MainRenderingContext )
 {
   b32 Result;
-  Window RootWindow = DefaultRootWindow(MainVideoDisplay);
+  Window RootWindow = DefaultRootWindow(Monitors);
 
   GLint GLAttributeList[15];
   AttributeList[0] = GLX_RGBA;// support 24bit color and an alpha channel
@@ -37,58 +37,131 @@ b32 X11InitializeWindow( s32 *ScreenWidth, s32 ScreenHeight, Display *MainVideoD
   AttributeList[14] = None;
 
   XVisualInfo *VisualInfo;
-  VisualInfo = glXChooseVisual(MainVideoDisplay, 0, AttributeList);
+  VisualInfo = glXChooseVisual(Monitors, 0, AttributeList);
 
   if(!VisualInfo)
   {
     return false;
   }
 
-  Colormap ColorMap = XCreateColormap(MainVideoDisplay, RootWindow, VisualInfo->visual, AllocNone);
+  Colormap ColorMap = XCreateColormap(Monitors, RootWindow, VisualInfo->visual, AllocNone);
+
+
+  Screen *DefaultMonitor = XDefaultScreenOfDisplay( Monitors );
+
+  if(FULL_SCREEN)
+  {
+    *ScreenWidth = XWidthOfScreen( DefaultMonitor );
+    *ScreenHeight = XHeightOfScreen( DefaultMonitor );
+  }
+  else
+  {
+    *ScreenWidth = 1024;
+    *ScreenHeight = 768;
+  }
 
   // Fill out the structure for setting the window attributes.
   XSetWindowAttributes SetWindowAttributes;
   SetWindowAttributes.colormap = ColorMap;
   SetWindowAttributes.event_mask = KeyPressMask|KeyReleaseMask|ButtonPressMask|ButtonReleaseMask;
 
-  Screen *DefaultMonitor;
+  *MainWindow = XCreateWindow( Monitors, RootWindow, 0, 0, *ScreenWidth, *ScreenHeight, 0, VisualInfo->depth, InputOutput, VisualInfo->visual, CWColormap | CWEventMask, &SetWindowAttributes);
+
+  XMapWindow( Monitors, *MainWindow);
+  XStoreName( Monitors, *MainWindow, "STABTX");
+
   if(FULL_SCREEN)
   {
-    DefaultMonitor = XDefaultScreenOfDisplay( MainVideoDisplay );
-    *ScreenWidth = XWidthOfScreen(DefaultMonitor);
-    *ScreenHeight = XHeightOfScreen(DefaultMonitor);
+    Atom WmState = XInternAtom( Monitors, "_NET_WM_STATE",False);
+    Atom FullScreenState = XInternAtom( Monitors, "_NET_WM_STATE_FULLSCREEN",False);
+    XEvent FullScreenEvent;
+    memset(&FullScreenEvent, 0, sizeof(FullScreenEvent));
+
+    FullScreenEvent.type = ClientMessage;
+    FullScreenEvent.xclient.window = *MainWindow;
+    FullScreenEvent.xclient.message_type = WmState;
+    FullScreenEvent.xclient.format = 32;
+    FullScreenEvent.xclient.data.l[0] = 1;
+    FullScreenEvent.xclient.data.l[1] = FullScreenState;
+    FullScreenEvent.xclient.data.l[2] = 0;
+    FullScreenEvent.xclient.data.l[3] = 0;
+    FullScreenEvent.xclient.data.l[4] = 0;
+
+    if( XSendEvent(Monitors, DefaultRootWindow(Monitors), False, SubstructureRedirectMask | SubstructureNotifyMask, &FullScreenEvent) )
+    {
+      LogFatal( ERROR, "Failed to Send FullScreenEvent" );
+    }
+
+    Atom MotifHints = XInternAtom( Monitors, "MOTIF_WM_HINTS", False);
+    s32 MotifHintList[5];
+    MotifHintList[0] = 2;
+    MotifHintList[1] = 0;
+    MotifHintList[2] = 0;
+    MotifHintList[3] = 0;
+    MotifHintList[4] = 0;
+
+    if( XChangeProperty(Monitors, *MainWindow, MotifHints, 32, PropModeReplace, (u8 *)&MotifHintList, 5);
+    {
+      LogFatal( ERROR, "XChangeProperty Failed");
+    }
+
+    if( XFlush( Monitors ) );
+    sleep(1);
   }
 
-  *MainWindow = XCreateWindow( MainVideoDisplay, );
+  *GLRenderingContext = glXCreateContext(Monitors, VisualInfo, 0, GL_TRUE);
+  if(!(*GLRenderingContext))
+  {
+    LogFatal( ERROR, "Failed to create glContext");
+  }
 
-  i32 GLMajorVersion;
-  Atom WmState, FullScreenState, MotifHints;
-  XEvent FullScreenEvent;
-  s32 MotifHintList[5];
+  if( !(glXMakeCurrent(Monitors, MainWindow, GLRenderingContext)) )
+  {
+    LogFatal( ERROR, "Failed glXMakeCurrent");
+  }
 
-  s32 Status_, PosX, PosY, DefaultMonitorWidth, DefaultMonitorHeight;
+  s32 MajorVersion;
+  glGetIntegerv(GL_MAJOR_VERSION, &MajorVersion);
 
-  Root
+  if(MajorVersion < 4)
+  {
+    LogFatal( ERROR, "Failed to get GL Major Version");
+  }
 
+  if( !(glXIsDirect(Monitors, *GLRenderingContext)) )
+  {
+    LogFatal( ERROR, "glXIsDirect failed");
+  }
+
+  if(!FULL_SCREEN)
+  {
+    s32 DefaultScreenWidth = XWidthOfScreen( DefaultMonitor );
+    s32 DefaultScreenHeight = XWidthOfScreen( DefaultMonitor );
+    s32 PosX = (DefaultScreenWidth - *ScreenWidth)/2;
+    s32 PosY = (DefaultScreenHeight - *ScreenHeight)/2;
+
+    if(XMoveWindow(Monitors, *MainWindow, PosX, PosY))
+    {
+      LogFatal( ERROR, "Failed to move window");
+    }
+  }
   return(true);
 }
 
-internal void X11ProcessKeyboardButtonState( keyState_t KeyboardState[256], KeySym KeySymbol )
+internal void X11ProcessKeyboardButtonState( b32 KeyboardState[KEY_SUPPORT_COUNT], KeySym KeySymbol, b32 State )
 {
-  /*
   switch(KeySymbol)
   {
     case(65307):{
-      KeyboardSate[KEY_ESCAPE] = !KeyboardState[KEY_ESCAPE];
+      KeyboardSate[KEY_ESCAPE] = State;
     } break;
 
     default:{
     } break;
   }
-  */
 }
 
-internal void X11ReadInput( Display *Monitors, Window *MainWindow, keyState_t KeyboardState[KEY_SUPPORT_COUNT], b32 *Running )
+internal void X11ReadInput( Display *Monitors, Window *MainWindow, b32 KeyboardState[KEY_SUPPORT_COUNT], b32 *Running )
 {
   XEvent UserEvent;
   char KeyBuffer[32];
@@ -99,14 +172,15 @@ internal void X11ReadInput( Display *Monitors, Window *MainWindow, keyState_t Ke
   if(XCheckWindowEvent( Monitors, *MainWindow, EventMask, &UserEvent))
   {
     XLookupString(&UserEvent.xkey, KeyBuffer, sizeof(KeyBuffer), &KeySymbol, 0);
+    Log(INFO, "%s", KeyBuffer);
     switch(UserEvent.type)
     {
       case(KeyPress):{
-        SetKeyDown( KeyboardState, KeySymbol );
+        X11ProcessKeyboardButtonState( KeyboardState, KeySymbol, 1);
       }break;
 
       case(KeyRelease):{
-        SetKeyUp( KeyboardState, KeySymbol );
+        X11ProcessKeyboardButtonState( KeyboardState, KeySymbol, 0);
       }break;
 
       default:{
@@ -119,8 +193,6 @@ internal void X11ReadInput( Display *Monitors, Window *MainWindow, keyState_t Ke
     *Running = false;
   }
 }
-
-#define EvalPrintKey(x) printf("%s %d %b\n", #x ,x.halfTransitionCount, x.isEndedDown);
 
 int main(void)
 {
@@ -136,7 +208,7 @@ int main(void)
 
   GLXContext RenderingContext;
   Winodw MainWindow;
-  if(!InitializezWindow( &ScreenWidth, &ScreenHeight, Monitors, &MainWindow, &RenderingContext ))
+  if(!X11InitializeWindow( &ScreenWidth, &ScreenHeight, Monitors, &MainWindow, &RenderingContext ))
   {
     LogFatal( ERROR, "Failed to Initialize Window" );
   }

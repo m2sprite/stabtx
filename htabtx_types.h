@@ -17,3 +17,5 @@ typedef float f32;
 #define MEMORYZEROSTRUCT(p) MemoryZero((p), sizeof(*(p)))
 #define MEMORYZEROARRAY(p) MemoryZero((p), sizeof(p))
 #define MEMORYZEROTYPED(p,c) MemoryZero((p), sizeof(*(p))*(c))
+
+#define EvalPrintKey(x) printf("%s %d %b\n", #x ,x.halfTransitionCount, x.isEndedDown);
