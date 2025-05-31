@@ -1,10 +1,5 @@
 #ifndef __HTABTX_GL_MATRIX_H__
 #define __HTABTX_GL_MATRIX_H__
-typedef struct {
-  f32 WorldMatrix[16];
-  f32 ProjectionMatrix[16];
-  f32 OrthoMatrix[16];
-} openGLMatrixStruct_t;
 void GLMatrixTranslation(f32 *Matrix, f32 x, f32 y, f32 z);
 void GLMatrixRotationX(f32 *Matrix, f32 Angle);
 void GLMatrixRotationY(f32 *Matrix, f32 Angle);

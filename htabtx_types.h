@@ -2,6 +2,7 @@
 #define global static
 #define internal static
 
+typedef uint8_t u8;
 typedef int32_t s32;
 typedef s32 b32;
 typedef float f32;
@@ -13,9 +14,9 @@ typedef float f32;
 #define Terabytes(number) (Gigabytes(number) * 1024ull)
 
 #include <string.h>
-#define MEMORYZERO(p,Z) memset((p), 0, (z))
-#define MEMORYZEROSTRUCT(p) MemoryZero((p), sizeof(*(p)))
-#define MEMORYZEROARRAY(p) MemoryZero((p), sizeof(p))
-#define MEMORYZEROTYPED(p,c) MemoryZero((p), sizeof(*(p))*(c))
+#define MEMORYZERO(p,z) memset((p), 0, (z))
+#define MEMORYZEROSTRUCT(p) MEMORYZERO((p), sizeof(*(p)))
+#define MEMORYZEROARRAY(p) MEMORYZERO((p), sizeof(p))
+#define MEMORYZEROTYPED(p,c) MEMORYZERO((p), sizeof(*(p))*(c))
 
 #define EvalPrintKey(x) printf("%s %d %b\n", #x ,x.halfTransitionCount, x.isEndedDown);
