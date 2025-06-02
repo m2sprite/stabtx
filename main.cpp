@@ -12,13 +12,14 @@
 #define KEY_SUPPORT_COUNT 1
 global b32 FULL_SCREEN = false;
 global b32 VSYNC_ENABLED = true;
+
 global s32 KEY_ESCAPE = 0;
+
 global f32 SCREEN_NEAR = 0.3f;
 global f32 SCREEN_DEPTH = 0.3f;
 
 b32 X11InitializeWindow( s32 *ScreenWidth, s32 *ScreenHeight, Display *Monitors, Window *MainWindow, GLXContext *GLRenderingContext )
 {
-
   Window RootWindow = DefaultRootWindow(Monitors);
   GLint GLAttributeList[15];
   GLAttributeList[0] = GLX_RGBA;// support 24bit color and an alpha channel
@@ -198,6 +199,51 @@ internal void X11ReadInput( Display *Monitors, Window *MainWindow, b32 KeyboardS
   }
 }
 
+typedef struct {
+  char *Buffer;
+  size_t CharCountNoNull;
+  size_t Size;
+} shaderFile_t;
+
+shaderFile_t LoadFileIntoBufferWithNullDelim( const char *FileName )
+{
+  shaderFile_t Result = {};
+  FILE *File = fopen( FileName, "rb" );
+  if( File )
+  {
+    fseek(File, 0, SEEK_END);
+    size_t BytesToAlloc = ftell(File);
+    rewind(File);
+    Result.Buffer = (char *)malloc(BytesToAlloc+1);
+    if(!Result.Buffer)
+    {
+      LogFatal( ERROR, "Failed to create buffer to read %s into", FileName );
+    }
+
+    Result.Size = BytesToAlloc+1;
+    Result.CharCountNoNull = BytesToAlloc;
+    fread(Result.Buffer, 1, BytesToAlloc, File);
+    Result.Buffer[BytesToAlloc] = '\0';
+    fclose( File );
+  }
+  else
+  {
+    LogFatal( ERROR, "Failed to read in file %s", FileName );
+  }
+  return(Result);
+}
+
+internal inline void CheckShaderCompilation(u32 Shader, const char *ShaderType)
+{
+  s32 ShaderStatus;
+  glGetShaderiv(Shader,GL_COMPILE_STATUS, &ShaderStatus);
+  if(!ShaderStatus)
+  {
+    // TODO(m2sprite|2025-05-31 16:58:37): Output error message
+    LogFatal(ERROR, "Failed to compile %s shader", ShaderType);
+  }
+}
+
 int main(void)
 {
   s32 ScreenWidth;
@@ -223,22 +269,38 @@ int main(void)
 
   InitializeOpenGL( Monitors, ScreenWidth, ScreenHeight, SCREEN_NEAR, SCREEN_DEPTH, VSYNC_ENABLED, WorldMatrix, ProjectionMatrix, OrthoMatrix);
 
+  //TODO:Make a single buffer that loads both files and give pointers to offsets in the buffer
+  shaderFile_t vsFile = LoadFileIntoBufferWithNullDelim("color.vs");
+  shaderFile_t fsFile = LoadFileIntoBufferWithNullDelim("color.fs");
+
+  u32 VertexShader = glCreateShader(GL_VERTEX_SHADER);
+  u32 FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+
+  glShaderSource(VertexShader, 1, &vsFile.Buffer, 0);
+  glShaderSource(FragmentShader, 1, &fsFile.Buffer, 0);
+
+  glCompileShader(VertexShader);
+  glCompileShader(FragmentShader);
+  CheckShaderCompilation(VertexShader, "Vertex");
+  CheckShaderCompilation(FragmentShader, "Framgent");
+
+  u32 ShaderProgram = glCreateProgram();
+  glAttachShader(ShaderProgram, VertexShader);
+  glAttachShader(ShaderProgram, FragmentShader);
+
   b32 KeyboardState[KEY_SUPPORT_COUNT] = {0};
   MEMORYZEROARRAY(KeyboardState);
 
   while(Running)
   {
     X11ReadInput(Monitors, &MainWindow, KeyboardState, &Running);
-
-    if( KeyboardState[KEY_ESCAPE] ) {
+    if( KeyboardState[KEY_ESCAPE] )
+    {
       Running = 0;
     }
-
-    glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     glXSwapBuffers(Monitors, MainWindow);
-
   }
 
   glXMakeCurrent(Monitors, None, NULL);
