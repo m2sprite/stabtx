@@ -18,6 +18,9 @@ global s32 KEY_ESCAPE = 0;
 global f32 SCREEN_NEAR = 0.3f;
 global f32 SCREEN_DEPTH = 0.3f;
 
+#define TEMP_SHADER_ERROR_MESSAGES_SIZE 10240
+global char TempShaderErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
+
 b32 X11InitializeWindow( s32 *ScreenWidth, s32 *ScreenHeight, Display *Monitors, Window *MainWindow, GLXContext *GLRenderingContext )
 {
   Window RootWindow = DefaultRootWindow(Monitors);
@@ -47,7 +50,6 @@ b32 X11InitializeWindow( s32 *ScreenWidth, s32 *ScreenHeight, Display *Monitors,
   }
 
   Colormap ColorMap = XCreateColormap(Monitors, RootWindow, VisualInfo->visual, AllocNone);
-
 
   Screen *DefaultMonitor = XDefaultScreenOfDisplay( Monitors );
 
@@ -233,14 +235,10 @@ shaderFile_t LoadFileIntoBufferWithNullDelim( const char *FileName )
   return(Result);
 }
 
-
-#define TEMP_SHADER_ERROR_MESSAGES_SIZE 10240
-global char TempShaderErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
-
-internal inline void CheckShaderCompilation(u32 ShaderId, const char *ShaderType)
+internal inline void CheckShader(GLuint ShaderId, GLenum GL_EXT, const char *ShaderType, const char *Action)
 {
   s32 ShaderStatus;
-  glGetShaderiv(ShaderId,GL_COMPILE_STATUS, &ShaderStatus);
+  glGetShaderiv(ShaderId, GL_EXT, &ShaderStatus);
   if( !ShaderStatus )
   {
     GLint ShaderLogSize = 0;
@@ -253,7 +251,7 @@ internal inline void CheckShaderCompilation(u32 ShaderId, const char *ShaderType
     glGetShaderInfoLog(ShaderId, ShaderLogSize, 0, ShaderLogPlace);
     TempShaderErrorMessagesHere[ShaderLogSize] = '\0';
     printf( "[SHADER INFO]: %s\n",  TempShaderErrorMessagesHere);
-    LogFatal(ERROR, "Failed to compile %s shader", ShaderType);
+    LogFatal(ERROR, "Failed to %s %s shader", Action,ShaderType);
   }
 }
 
@@ -294,17 +292,25 @@ int main(void)
 
   glCompileShader(VertexShader);
   glCompileShader(FragmentShader);
-  CheckShaderCompilation(VertexShader, "Vertex");
-  CheckShaderCompilation(FragmentShader, "Framgent");
+  CheckShader(VertexShader, GL_COMPILE_STATUS ,"Vertex", "compile");
+  CheckShader(FragmentShader, GL_COMPILE_STATUS ,"Fragment", "compile");
 
   u32 ShaderProgram = glCreateProgram();
   glAttachShader(ShaderProgram, VertexShader);
   glAttachShader(ShaderProgram, FragmentShader);
 
+  glBindAttribLocation( ShaderProgram, 0, "inputPosition" );
+  glBindAttribLocation( ShaderProgram, 1, "inputColor" );
+
+  glLinkProgram( ShaderProgram );
+
+  CheckShader( ShaderProgram, GL_LINK_STATUS, "ShaderPorgram", "link" );
+
+
   b32 KeyboardState[KEY_SUPPORT_COUNT] = {0};
   MEMORYZEROARRAY(KeyboardState);
 
-  while(Running)
+  while( Running )
   {
     X11ReadInput(Monitors, &MainWindow, KeyboardState, &Running);
     if( KeyboardState[KEY_ESCAPE] )
