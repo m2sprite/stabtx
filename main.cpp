@@ -233,13 +233,26 @@ shaderFile_t LoadFileIntoBufferWithNullDelim( const char *FileName )
   return(Result);
 }
 
-internal inline void CheckShaderCompilation(u32 Shader, const char *ShaderType)
+
+#define TEMP_SHADER_ERROR_MESSAGES_SIZE 10240
+global char TempShaderErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
+
+internal inline void CheckShaderCompilation(u32 ShaderId, const char *ShaderType)
 {
   s32 ShaderStatus;
-  glGetShaderiv(Shader,GL_COMPILE_STATUS, &ShaderStatus);
-  if(!ShaderStatus)
+  glGetShaderiv(ShaderId,GL_COMPILE_STATUS, &ShaderStatus);
+  if( !ShaderStatus )
   {
-    // TODO(m2sprite|2025-05-31 16:58:37): Output error message
+    GLint ShaderLogSize = 0;
+    char *ShaderLogPlace = TempShaderErrorMessagesHere;
+    glGetShaderiv(ShaderId, GL_INFO_LOG_LENGTH, &ShaderLogSize);
+    if ( ShaderLogSize > TEMP_SHADER_ERROR_MESSAGES_SIZE )
+    {
+      LogFatal(ERROR, "Shader Info Too big to fit in stack buffer");
+    }
+    glGetShaderInfoLog(ShaderId, ShaderLogSize, 0, ShaderLogPlace);
+    TempShaderErrorMessagesHere[ShaderLogSize] = '\0';
+    printf( "[SHADER INFO]: %s\n",  TempShaderErrorMessagesHere);
     LogFatal(ERROR, "Failed to compile %s shader", ShaderType);
   }
 }
