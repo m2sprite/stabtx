@@ -21,6 +21,15 @@ global f32 SCREEN_DEPTH = 0.3f;
 #define TEMP_SHADER_ERROR_MESSAGES_SIZE 10240
 global char TempShaderErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
 
+struct vertex_t {
+  f32 x;
+  f32 y;
+  f32 z;
+  f32 r;
+  f32 g;
+  f32 b;
+};
+
 b32 X11InitializeWindow( s32 *ScreenWidth, s32 *ScreenHeight, Display *Monitors, Window *MainWindow, GLXContext *GLRenderingContext )
 {
   Window RootWindow = DefaultRootWindow(Monitors);
@@ -255,6 +264,82 @@ internal inline void CheckShader(GLuint ShaderId, GLenum GL_EXT, const char *Sha
   }
 }
 
+typedef struct {
+  vertex_t *Verticies;
+  u32 *Indecies;
+  u32 VertexCount;
+  u32 IndexCount;
+  GLuint VertexArrayId;
+  GLuint VertexBufferId;
+  GLuint IndexBufferId;
+} glModel_t;
+
+glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
+  glModel_t Result;
+  Result.Verticies = Floats;
+  if( !Result.Verticies )
+  {
+    LogFatal(ERROR, "Vertex buffer creation failed");
+  }
+
+  Result.VertexCount = VertexCount;
+  Result.Indecies = (u32 *)malloc( sizeof(u32) * IndexCount );
+  if( !Result.Verticies )
+  {
+    LogFatal(ERROR, "Vertex buffer creation failed");
+  }
+
+  for(u32 i = 0; i < IndexCount; ++i)
+  {
+    Result.Indecies[i] = i;
+  }
+
+  Result.IndexCount = IndexCount;
+  return( Result );
+}
+
+typedef struct {
+  vertex_t Vertices[3];
+} triangle_t;
+
+triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B ) {
+  triangle_t Result;
+  for(size_t i = 0; i < 3; ++i)
+  {
+    Result.Vertices[i].x = Pos[(i*3)];
+    Result.Vertices[i].y = Pos[(i*3)+1];
+    Result.Vertices[i].z = Pos[(i*3)+2];
+    Result.Vertices[i].r = R;
+    Result.Vertices[i].g = G;
+    Result.Vertices[i].b = B;
+  }
+  return(Result);
+}
+
+void glIfyModlel( glModel_t *Model )
+{
+  glGenVertexArrays(1, &Model->VertexArrayId);
+  glBindVertexArray(Model->VertexArrayId);
+  glGenBuffers(1, &Model->VertexBufferId);
+  glBindBuffer(GL_ARRAY_BUFFER, Model->VertexBufferId);
+  glBufferData(GL_ARRAY_BUFFER, Model->VertexCount * sizeof(*Model->Verticies), Model->Verticies, GL_STATIC_DRAW);
+
+  glEnableVertexAttribArray(0); // vertex pos
+  glEnableVertexAttribArray(1); // vertex color
+
+  //void glVertexAttribPointer(	GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
+  // specify the layout of vertex attribute data
+  // how do we interpret the vertex data stored in the buufer
+  glVertexAttribPointer(0, 3 /*number of components per attribute*/, GL_FLOAT, false /*nomralize*/, sizeof(*Model->Verticies), 0);
+                                                                                      /* care that three right here */
+  glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(*Model->Verticies), (u8 *)0 + (3 * sizeof(f32)));
+
+  glGenBuffers(1, &Model->IndexBufferId);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Model->IndexBufferId);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, Model->IndexCount * sizeof(u32), Model->Indecies, GL_STATIC_DRAW);
+  free( Model->Indecies );
+}
+
 int main(void)
 {
   s32 ScreenWidth;
@@ -264,6 +349,7 @@ int main(void)
   f32 WorldMatrix[16];
   f32 ProjectionMatrix[16];
   f32 OrthoMatrix[16];
+  f32 CameraViewMatrix[
 
   Display *Monitors = XOpenDisplay(0);
   if( !Monitors )
@@ -306,9 +392,13 @@ int main(void)
 
   CheckShader( ShaderProgram, GL_LINK_STATUS, "ShaderPorgram", "link" );
 
-
   b32 KeyboardState[KEY_SUPPORT_COUNT] = {0};
   MEMORYZEROARRAY(KeyboardState);
+
+  f32 TrianglePos[9] = { -1.0f, -1.0f, 0.0f, 0.0f , 1.0f, 0.0f, 1.0f, -1.0f, 0.0f };
+  triangle_t TriangleVertices = GiveTriangleSignleColor(  TrianglePos, 1.0f, 1.0f, 1.0f );
+  glModel_t Triangle = GiveGlModel( 3, 3,  TriangleVertices.Vertices );
+  glIfyModlel( &Triangle );
 
   while( Running )
   {
@@ -317,10 +407,52 @@ int main(void)
     {
       Running = 0;
     }
-    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    f32 RenderWorldMatrix[16];
+    f32 RenderViewMatrix[16];
+    f32 RenderProjectionMatrix[16];
+
+    GLMatrixTranspose(RenderWorldMatrix, WorldMatrix);
+    GLMatrixTranspose(RenderViewMatrix, CameraViewMatrix);
+    GLMatrixTranspose(RenderProjectionMatrix, ProjectionMatrix);
+
+    glUseProgram( ShaderProgram );
+
+    s32 WorldMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "worldMatrix" );
+    s32 ViewMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "viewMatrix" );
+    s32 ProjectionMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "projectionMatrix" );
+
+    if( WorldMatrixShaderVarLocation != -1 ) {
+      glUniformMatrix4fv( WorldMatrixShaderVarLocation, 1, false, RenderWorldMatrix );
+    } else {
+      LogFatal(ERROR, "World matrix not set in shader ");
+    }
+
+    if( ViewMatrixShaderVarLocation != -1 ) {
+      glUniformMatrix4fv( ViewMatrixShaderVarLocation, 1, false, RenderViewMatrix );
+    } else {
+      LogFatal(ERROR, "World matrix not set in shader ");
+    }
+
+    if( ProjectionMatrixShaderVarLocation != -1 ) {
+      glUniformMatrix4fv( ProjectionMatrixShaderVarLocation, 1, false, RenderProjectionMatrix );
+    } else {
+      LogFatal(ERROR, "World matrix not set in shader ");
+    }
+
+
     glXSwapBuffers(Monitors, MainWindow);
   }
+
+
+  glDetachSahder(ShaderProgram, VertexShader);
+  glDetachSahder(ShaderProgram, FragmentShader);
+  glDeleteShader(VertexShader);
+  glDeleteShader(FragmentShader);
+  glDeleteProgram(ShaderProgram);
 
   glXMakeCurrent(Monitors, None, NULL);
   glXDestroyContext(Monitors, RenderingContext);
