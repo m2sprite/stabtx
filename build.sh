@@ -1,2 +1,2 @@
 #!/bin/bash
-g++ -Wall -Wextra main.cpp -o main -lGL -lX11
+g++ -Wall -Wextra -g main.cpp -o main -lGL -lX11

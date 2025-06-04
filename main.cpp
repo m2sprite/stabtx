@@ -16,10 +16,10 @@ global b32 VSYNC_ENABLED = true;
 global s32 KEY_ESCAPE = 0;
 
 global f32 SCREEN_NEAR = 0.3f;
-global f32 SCREEN_DEPTH = 0.3f;
+global f32 SCREEN_DEPTH = 1000.0f;
 
 #define TEMP_SHADER_ERROR_MESSAGES_SIZE 10240
-global char TempShaderErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
+global char TempGLErrorMessagesHere[TEMP_SHADER_ERROR_MESSAGES_SIZE];
 
 struct vertex_t {
   f32 x;
@@ -29,6 +29,12 @@ struct vertex_t {
   f32 g;
   f32 b;
 };
+
+void PrintVertex( vertex_t Vertex )
+{
+  printf( " x %f y %f z %f \n", Vertex.x, Vertex.y, Vertex.z );
+  printf( " r %f g %f b %f \n", Vertex.r, Vertex.g, Vertex.b );
+}
 
 b32 X11InitializeWindow( s32 *ScreenWidth, s32 *ScreenHeight, Display *Monitors, Window *MainWindow, GLXContext *GLRenderingContext )
 {
@@ -251,16 +257,36 @@ internal inline void CheckShader(GLuint ShaderId, GLenum GL_EXT, const char *Sha
   if( !ShaderStatus )
   {
     GLint ShaderLogSize = 0;
-    char *ShaderLogPlace = TempShaderErrorMessagesHere;
+    char *ShaderLogPlace = TempGLErrorMessagesHere;
     glGetShaderiv(ShaderId, GL_INFO_LOG_LENGTH, &ShaderLogSize);
     if ( ShaderLogSize > TEMP_SHADER_ERROR_MESSAGES_SIZE )
     {
       LogFatal(ERROR, "Shader Info Too big to fit in stack buffer");
     }
     glGetShaderInfoLog(ShaderId, ShaderLogSize, 0, ShaderLogPlace);
-    TempShaderErrorMessagesHere[ShaderLogSize] = '\0';
-    printf( "[SHADER INFO]: %s\n",  TempShaderErrorMessagesHere);
+    TempGLErrorMessagesHere[ShaderLogSize] = '\0';
+    printf( "[SHADER INFO]: %s\n",  TempGLErrorMessagesHere);
     LogFatal(ERROR, "Failed to %s %s shader", Action,ShaderType);
+  }
+}
+
+internal inline void CheckProgram(GLuint ProgramId, GLenum GL_EXT, const char *ProgramType, const char *Action)
+{
+  s32 ProgramStatus;
+  glGetProgramiv( ProgramId, GL_EXT, &ProgramStatus);
+  if( ProgramStatus != 1 )
+  {
+    GLint ProgramLogSize = 0;
+    char *ProgramLogPlace = TempGLErrorMessagesHere;
+    glGetProgramiv(ProgramId, GL_INFO_LOG_LENGTH, &ProgramLogSize);
+    if ( ProgramLogSize > TEMP_SHADER_ERROR_MESSAGES_SIZE )
+    {
+      LogFatal(ERROR, "Program Info Too big to fit in stack buffer");
+    }
+    glGetProgramInfoLog(ProgramId, ProgramLogSize, 0, ProgramLogPlace);
+    TempGLErrorMessagesHere[ProgramLogSize] = '\0';
+    printf( "[PROGRAM INFO]: %s\n",  TempGLErrorMessagesHere);
+    LogFatal(ERROR, "Failed to %s %s shader", Action,ProgramType);
   }
 }
 
@@ -275,14 +301,18 @@ typedef struct {
 } glModel_t;
 
 glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
+
   glModel_t Result;
+
   Result.Verticies = Floats;
+
   if( !Result.Verticies )
   {
     LogFatal(ERROR, "Vertex buffer creation failed");
   }
 
   Result.VertexCount = VertexCount;
+
   Result.Indecies = (u32 *)malloc( sizeof(u32) * IndexCount );
   if( !Result.Verticies )
   {
@@ -299,30 +329,32 @@ glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
 }
 
 typedef struct {
-  vertex_t Vertices[3];
+  vertex_t Verticies[3];
 } triangle_t;
 
-triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B ) {
+triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B )
+{
   triangle_t Result;
   for(size_t i = 0; i < 3; ++i)
   {
-    Result.Vertices[i].x = Pos[(i*3)];
-    Result.Vertices[i].y = Pos[(i*3)+1];
-    Result.Vertices[i].z = Pos[(i*3)+2];
-    Result.Vertices[i].r = R;
-    Result.Vertices[i].g = G;
-    Result.Vertices[i].b = B;
+    Result.Verticies[i].x = Pos[(i*3)];
+    Result.Verticies[i].y = Pos[(i*3)+1];
+    Result.Verticies[i].z = Pos[(i*3)+2];
+    Result.Verticies[i].r = R;
+    Result.Verticies[i].g = G;
+    Result.Verticies[i].b = B;
   }
   return(Result);
 }
 
 void glIfyModlel( glModel_t *Model )
 {
-  glGenVertexArrays(1, &Model->VertexArrayId);
-  glBindVertexArray(Model->VertexArrayId);
+  glGenVertexArrays( 1, &Model->VertexArrayId );
+  glBindVertexArray( Model->VertexArrayId );
+
   glGenBuffers(1, &Model->VertexBufferId);
   glBindBuffer(GL_ARRAY_BUFFER, Model->VertexBufferId);
-  glBufferData(GL_ARRAY_BUFFER, Model->VertexCount * sizeof(*Model->Verticies), Model->Verticies, GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, Model->VertexCount * sizeof(vertex_t), Model->Verticies, GL_STATIC_DRAW);
 
   glEnableVertexAttribArray(0); // vertex pos
   glEnableVertexAttribArray(1); // vertex color
@@ -330,14 +362,192 @@ void glIfyModlel( glModel_t *Model )
   //void glVertexAttribPointer(	GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer);
   // specify the layout of vertex attribute data
   // how do we interpret the vertex data stored in the buufer
-  glVertexAttribPointer(0, 3 /*number of components per attribute*/, GL_FLOAT, false /*nomralize*/, sizeof(*Model->Verticies), 0);
+  glVertexAttribPointer(0, 3 /*number of components per attribute*/, GL_FLOAT, false /*nomralize*/, sizeof(vertex_t), 0);
                                                                                       /* care that three right here */
-  glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(*Model->Verticies), (u8 *)0 + (3 * sizeof(f32)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, false, sizeof(vertex_t), (u8 *)0 + (3 * sizeof(f32)));
 
   glGenBuffers(1, &Model->IndexBufferId);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Model->IndexBufferId);
+  printf("Index count %u\n", Model->IndexCount);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, Model->IndexCount * sizeof(u32), Model->Indecies, GL_STATIC_DRAW);
+
   free( Model->Indecies );
+}
+
+struct vec3F32_t {
+  f32 x;
+  f32 y;
+  f32 z;
+};
+
+#define UNIT_TO_RADIANS 0.0174532925f
+
+void SetCameraRotationMatrix( f32 RotationMatrix[9], f32 X, f32 Y, f32 Z )
+{
+  f32 CosPitch = cosf(X * UNIT_TO_RADIANS);
+  f32 CosYaw   = cosf(Y * UNIT_TO_RADIANS);
+  f32 CosRoll  = cosf(Z * UNIT_TO_RADIANS);
+
+  f32 SinPitch = sinf(X * UNIT_TO_RADIANS);
+  f32 SinYaw   = sinf(Y * UNIT_TO_RADIANS);
+  f32 SinRoll  = sinf(Z * UNIT_TO_RADIANS);
+
+  RotationMatrix[0] = (CosRoll * CosYaw) + (SinRoll * SinPitch * SinYaw);
+  RotationMatrix[1] = (SinRoll * CosPitch);
+  RotationMatrix[2] = (CosRoll * -SinYaw) + (SinRoll * SinPitch * CosYaw);
+
+  RotationMatrix[3] = (-SinRoll * CosYaw) + (CosRoll * SinPitch * SinYaw);
+  RotationMatrix[4] = (CosRoll * CosPitch);
+  RotationMatrix[5] = (SinRoll * SinYaw) + (CosRoll * SinPitch * CosYaw);
+
+  RotationMatrix[6] = (CosPitch * SinYaw);
+  RotationMatrix[7] = -SinPitch;
+  RotationMatrix[8] = (CosPitch * CosYaw);
+}
+
+internal inline vec3F32_t vec3f32( f32 x, f32 y, f32 z )
+{
+  vec3F32_t Result;
+  Result.x = x;
+  Result.y = y;
+  Result.z = z;
+  return(Result);
+}
+
+internal inline
+void TransformVec3f32( vec3F32_t *Vector, f32 Matrix[9] )
+{
+  f32 x = (Vector->x*Matrix[0]) + (Vector->y*Matrix[1]) + (Vector->z*Matrix[2]);
+  f32 y = (Vector->x*Matrix[3]) + (Vector->y*Matrix[4]) + (Vector->z*Matrix[5]);
+  f32 z = (Vector->x*Matrix[6]) + (Vector->y*Matrix[7]) + (Vector->z*Matrix[8]);
+  Vector->x = x;
+  Vector->y = y;
+  Vector->z = z;
+}
+
+internal inline
+void Vec3f32Offset( vec3F32_t *Dest, vec3F32_t By  )
+{
+  Dest->x += By.x;
+  Dest->y += By.y;
+  Dest->z += By.z;
+}
+
+internal inline
+vec3F32_t Vec3f32Subtract( vec3F32_t A, vec3F32_t B  )
+{
+  vec3F32_t Result;
+  Result.x = A.x - B.x;
+  Result.y = A.y - B.y;
+  Result.z = A.z - B.z;
+  return( Result );
+}
+
+internal inline
+f32 Vec3Dot( vec3F32_t A, vec3F32_t B )
+{
+  f32 Result = A.x*B.x + A.y*B.y + A.z*B.z;
+  return( Result );
+}
+
+
+internal inline
+f32 Vec3Length ( vec3F32_t Vector )
+{
+  f32 Result = sqrt( Vec3Dot( Vector, Vector ) );
+  return( Result );
+}
+
+internal inline
+void Vec3Normalize ( vec3F32_t *Vector )
+{
+  f32 Length = Vec3Length( *Vector );
+  Vector->x /= Length;
+  Vector->y /= Length;
+  Vector->z /= Length;
+}
+
+internal inline
+vec3F32_t Vec3NormalizeInplace ( vec3F32_t Vector )
+{
+  f32 Length = Vec3Length( Vector );
+  vec3F32_t Result = {};
+  Result.x = Vector.x / Length;
+  Result.y = Vector.y / Length;
+  Result.y = Vector.z / Length;
+  return( Result );
+}
+
+internal inline
+vec3F32_t Vec3Cross( vec3F32_t A, vec3F32_t B )
+{
+  vec3F32_t Result = {};
+  //|i   j  k|
+  //|a1 a2 a3|
+  //|b1 b2 b3|
+  Result.x = (A.y*B.z)-(A.z*B.y);
+  Result.y = (A.z*B.x)-(A.x*B.z);
+  Result.z = (A.x*B.y)-(A.y*B.x);
+  return( Result );
+}
+
+void Vec3f32Print( vec3F32_t Vector )
+{
+  printf( "x %f y %f z %f\n", Vector.x,Vector.y,Vector.z);
+}
+
+
+void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3F32_t Up)
+{
+  Vec3f32Print(Position);
+  Vec3f32Print(LookAt);
+  vec3F32_t zAxis = Vec3f32Subtract( LookAt, Position );
+  f32 Dot = Vec3Dot(zAxis, zAxis);
+
+
+
+  Vec3f32Print(zAxis);
+  printf("Dot %f\n", sqrt(Dot);
+  exit(21);
+  /*
+
+  vec3F32_t zAxis = Vec3NormalizeInplace( Vec3f32Subtract( LookAt, Position) );
+
+  vec3F32_t xAxis = Vec3NormalizeInplace( Vec3Cross( Up, zAxis ));
+
+  printf( "x %f y %f z %f\n", xAxis.x,xAxis.y,xAxis.z);
+  //no norm needed since we're already taking cross of two normalized vectors
+  vec3F32_t yAxis = Vec3Cross( zAxis, xAxis );
+
+  printf( "x %f y %f z %f\n", yAxis.x,yAxis.y,yAxis.z);
+
+  */
+
+  /*
+  f32 Result1 = Vec3Dot(xAxis, Position) * -1.0f;
+  f32 Result2 = Vec3Dot(yAxis, Position) * -1.0f;
+  f32 Result3 = Vec3Dot(zAxis, Position) * -1.0f;
+
+  Dest[0]  = xAxis.x;
+  Dest[1]  = yAxis.x;
+  Dest[2]  = zAxis.x;
+  Dest[3]  = 0.0f;
+
+  Dest[4]  = xAxis.y;
+  Dest[5]  = yAxis.y;
+  Dest[6]  = zAxis.y;
+  Dest[7]  = 0.0f;
+
+  Dest[8]  = xAxis.z;
+  Dest[9]  = yAxis.z;
+  Dest[10] = zAxis.z;
+  Dest[11] = 0.0f;
+
+  Dest[12] = Result1;
+  Dest[13] = Result2;
+  Dest[14] = Result3;
+  Dest[15] = 1.0f;
+  */
 }
 
 int main(void)
@@ -349,7 +559,6 @@ int main(void)
   f32 WorldMatrix[16];
   f32 ProjectionMatrix[16];
   f32 OrthoMatrix[16];
-  f32 CameraViewMatrix[
 
   Display *Monitors = XOpenDisplay(0);
   if( !Monitors )
@@ -365,6 +574,10 @@ int main(void)
   }
 
   InitializeOpenGL( Monitors, ScreenWidth, ScreenHeight, SCREEN_NEAR, SCREEN_DEPTH, VSYNC_ENABLED, WorldMatrix, ProjectionMatrix, OrthoMatrix);
+
+  GLPrintMatrix16(WorldMatrix, "WorldMatrix");
+  GLPrintMatrix16(ProjectionMatrix, "ProjectionMatrix" );
+  GLPrintMatrix16(OrthoMatrix, "OrthoMatrix" );
 
   //TODO:Make a single buffer that loads both files and give pointers to offsets in the buffer
   shaderFile_t vsFile = LoadFileIntoBufferWithNullDelim("color.vs");
@@ -387,18 +600,32 @@ int main(void)
 
   glBindAttribLocation( ShaderProgram, 0, "inputPosition" );
   glBindAttribLocation( ShaderProgram, 1, "inputColor" );
-
   glLinkProgram( ShaderProgram );
-
-  CheckShader( ShaderProgram, GL_LINK_STATUS, "ShaderPorgram", "link" );
+  CheckProgram( ShaderProgram, GL_LINK_STATUS, "ShaderPorgram", "link" );
 
   b32 KeyboardState[KEY_SUPPORT_COUNT] = {0};
   MEMORYZEROARRAY(KeyboardState);
 
+  f32 CameraViewMatrix[16];
+  f32 CameraRotationMatrix[9];
+  vec3F32_t CameraUp = vec3f32(0.0f, 1.0f, 0.0f);
+  vec3F32_t CameraLookAt = vec3f32(0.0f, 0.0f, 1.0f);
+  vec3F32_t CameraPosition = vec3f32(0.0f,0.0f, -0.5f);
+  vec3F32_t CameraRotation = vec3f32(0.0f,0.0f,0.0f);
+
+  SetCameraRotationMatrix( CameraRotationMatrix, CameraRotation.x, CameraRotation.y,  CameraRotation.z );
+
+  TransformVec3f32( &CameraLookAt, CameraRotationMatrix );
+  TransformVec3f32( &CameraUp, CameraRotationMatrix );
+  Vec3f32Offset( &CameraLookAt, CameraPosition );
+  BuildViewMatrix( CameraViewMatrix , CameraPosition, CameraLookAt, CameraUp );
+  GLPrintMatrix16( CameraViewMatrix, "View Mtarix" );
+
   f32 TrianglePos[9] = { -1.0f, -1.0f, 0.0f, 0.0f , 1.0f, 0.0f, 1.0f, -1.0f, 0.0f };
-  triangle_t TriangleVertices = GiveTriangleSignleColor(  TrianglePos, 1.0f, 1.0f, 1.0f );
-  glModel_t Triangle = GiveGlModel( 3, 3,  TriangleVertices.Vertices );
-  glIfyModlel( &Triangle );
+  triangle_t Triangle = GiveTriangleSignleColor(  TrianglePos, 0.0f, 1.0f, 0.0f );
+
+  glModel_t TriangleModel = GiveGlModel( 3, 3,  Triangle.Verticies );
+  glIfyModlel( &TriangleModel );
 
   while( Running )
   {
@@ -411,13 +638,15 @@ int main(void)
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    f32 RenderWorldMatrix[16];
-    f32 RenderViewMatrix[16];
-    f32 RenderProjectionMatrix[16];
+    f32 RenderWorldMatrix[16] = {};
+    f32 RenderViewMatrix[16] = {};
+    f32 RenderProjectionMatrix[16] = {};
 
-    GLMatrixTranspose(RenderWorldMatrix, WorldMatrix);
-    GLMatrixTranspose(RenderViewMatrix, CameraViewMatrix);
-    GLMatrixTranspose(RenderProjectionMatrix, ProjectionMatrix);
+
+    GLMatrixTranspose( RenderWorldMatrix, WorldMatrix);
+    GLMatrixTranspose( RenderViewMatrix, CameraViewMatrix);
+    GLMatrixTranspose( RenderProjectionMatrix, ProjectionMatrix);
+
 
     glUseProgram( ShaderProgram );
 
@@ -443,13 +672,18 @@ int main(void)
       LogFatal(ERROR, "World matrix not set in shader ");
     }
 
+    GLPrintMatrix16(RenderWorldMatrix, "World");
+    GLPrintMatrix16(RenderViewMatrix, "View" );
+    GLPrintMatrix16(RenderProjectionMatrix, "Projection");
+
+    glBindVertexArray( TriangleModel.VertexArrayId );
+    glDrawElements(GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);
 
     glXSwapBuffers(Monitors, MainWindow);
   }
 
-
-  glDetachSahder(ShaderProgram, VertexShader);
-  glDetachSahder(ShaderProgram, FragmentShader);
+  glDetachShader(ShaderProgram, VertexShader);
+  glDetachShader(ShaderProgram, FragmentShader);
   glDeleteShader(VertexShader);
   glDeleteShader(FragmentShader);
   glDeleteProgram(ShaderProgram);

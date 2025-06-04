@@ -274,14 +274,17 @@ void GLBuildIdentityMatrix(f32 *Matrix)
   Matrix[1] = 0.0f;
   Matrix[2] = 0.0f;
   Matrix[3] = 0.0f;
+
   Matrix[4] = 0.0f;
   Matrix[5] = 1.0f;
   Matrix[6] = 0.0f;
   Matrix[7] = 0.0f;
+
   Matrix[8] = 0.0f;
   Matrix[9] = 0.0f;
   Matrix[10] = 1.0f;
   Matrix[11] = 0.0f;
+
   Matrix[12] = 0.0f;
   Matrix[13] = 0.0f;
   Matrix[14] = 0.0f;
@@ -295,7 +298,7 @@ void GLBuildPerspectiveFovMatrix(f32 *Matrix,
                                  f32 ScreenDepth
                                  )
 {
-  Matrix[0] = 1.0f / (ScreenAspect *tan(FieldOfView * 0.5f));
+  Matrix[0] = 1.0f / (ScreenAspect * tan(FieldOfView * 0.5f));
   Matrix[1] = 0.0f;
   Matrix[2] = 0.0f;
   Matrix[3] = 0.0f;
@@ -337,4 +340,13 @@ void GLBuildOrthoMatrix(f32 *Matrix, f32 ScreenWidth, f32 ScreenHeight, f32 Scre
   Matrix[13] = 0.0f;
   Matrix[14] = ScreenNear / (ScreenNear - ScreenDepth);
   Matrix[15] = 1.0f;
+}
+
+void GLPrintMatrix16( f32 *Matrix, const char *Name )
+{
+  printf("----%s \n", Name);
+  for(size_t i = 0; i < 16; i+=4 )
+  {
+    printf( "%f %f %f %f \n", Matrix[i], Matrix[i+1], Matrix[i+2], Matrix[i+3] );
+  }
 }
