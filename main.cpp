@@ -306,6 +306,14 @@ glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
 
   Result.Verticies = Floats;
 
+  for(size_t i = 0; i < VertexCount; ++i)
+  {
+    printf("v %f\n", Result.Verticies[i].x);
+    printf("v %f\n", Result.Verticies[i].y);
+    printf("v %f\n", Result.Verticies[i].z);
+    printf("------------\n");
+  }
+
   if( !Result.Verticies )
   {
     LogFatal(ERROR, "Vertex buffer creation failed");
@@ -324,7 +332,14 @@ glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
     Result.Indecies[i] = i;
   }
 
+  for(size_t i = 0; i < IndexCount; ++i)
+  {
+    printf("i %u \n", Result.Indecies[i]);
+    printf("------------\n");
+  }
+
   Result.IndexCount = IndexCount;
+
   return( Result );
 }
 
@@ -340,6 +355,7 @@ triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B )
     Result.Verticies[i].x = Pos[(i*3)];
     Result.Verticies[i].y = Pos[(i*3)+1];
     Result.Verticies[i].z = Pos[(i*3)+2];
+
     Result.Verticies[i].r = R;
     Result.Verticies[i].g = G;
     Result.Verticies[i].b = B;
@@ -349,6 +365,7 @@ triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B )
 
 void glIfyModlel( glModel_t *Model )
 {
+
   glGenVertexArrays( 1, &Model->VertexArrayId );
   glBindVertexArray( Model->VertexArrayId );
 
@@ -499,35 +516,28 @@ void Vec3f32Print( vec3F32_t Vector )
 
 void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3F32_t Up)
 {
+  Vec3f32Print(Up);
   Vec3f32Print(Position);
   Vec3f32Print(LookAt);
   vec3F32_t zAxis = Vec3f32Subtract( LookAt, Position );
   f32 Dot = Vec3Dot(zAxis, zAxis);
+  printf("Dot %f\n", sqrt(Dot));
+  zAxis.x /= sqrt(Dot);
+  zAxis.y /= sqrt(Dot);
+  zAxis.z /= sqrt(Dot);
 
+  vec3F32_t xAxis = Vec3Cross( Up, zAxis );
+  Dot = Vec3Dot(xAxis, xAxis);
+  xAxis.x /= sqrt(Dot);
+  xAxis.y /= sqrt(Dot);
+  xAxis.z /= sqrt(Dot);
 
-
-  Vec3f32Print(zAxis);
-  printf("Dot %f\n", sqrt(Dot);
-  exit(21);
-  /*
-
-  vec3F32_t zAxis = Vec3NormalizeInplace( Vec3f32Subtract( LookAt, Position) );
-
-  vec3F32_t xAxis = Vec3NormalizeInplace( Vec3Cross( Up, zAxis ));
-
-  printf( "x %f y %f z %f\n", xAxis.x,xAxis.y,xAxis.z);
-  //no norm needed since we're already taking cross of two normalized vectors
-  vec3F32_t yAxis = Vec3Cross( zAxis, xAxis );
-
-  printf( "x %f y %f z %f\n", yAxis.x,yAxis.y,yAxis.z);
-
-  */
-
-  /*
+  vec3F32_t yAxis = Vec3Cross( zAxis , xAxis );
   f32 Result1 = Vec3Dot(xAxis, Position) * -1.0f;
   f32 Result2 = Vec3Dot(yAxis, Position) * -1.0f;
   f32 Result3 = Vec3Dot(zAxis, Position) * -1.0f;
 
+  printf( "%f %f %f \n", Result1, Result2, Result3 );
   Dest[0]  = xAxis.x;
   Dest[1]  = yAxis.x;
   Dest[2]  = zAxis.x;
@@ -547,7 +557,6 @@ void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3
   Dest[13] = Result2;
   Dest[14] = Result3;
   Dest[15] = 1.0f;
-  */
 }
 
 int main(void)
@@ -556,9 +565,9 @@ int main(void)
   s32 ScreenHeight;
   b32 Running = true;
 
-  f32 WorldMatrix[16];
-  f32 ProjectionMatrix[16];
-  f32 OrthoMatrix[16];
+  f32 WorldMatrix[16]={0};
+  f32 ProjectionMatrix[16]={0};
+  f32 OrthoMatrix[16]= {0};
 
   Display *Monitors = XOpenDisplay(0);
   if( !Monitors )
@@ -621,19 +630,17 @@ int main(void)
   BuildViewMatrix( CameraViewMatrix , CameraPosition, CameraLookAt, CameraUp );
   GLPrintMatrix16( CameraViewMatrix, "View Mtarix" );
 
-  f32 TrianglePos[9] = { -1.0f, -1.0f, 0.0f, 0.0f , 1.0f, 0.0f, 1.0f, -1.0f, 0.0f };
-  triangle_t Triangle = GiveTriangleSignleColor(  TrianglePos, 0.0f, 1.0f, 0.0f );
+  f32 TrianglePos[9] = { -0.1f, -0.1f, 0.0f, 0.0f, 0.1f, 0.0f, 0.1f, -0.1f, 0.0f };
 
+  triangle_t Triangle = GiveTriangleSignleColor( TrianglePos, 0.0f, 0.0f, 1.0f );
   glModel_t TriangleModel = GiveGlModel( 3, 3,  Triangle.Verticies );
+
   glIfyModlel( &TriangleModel );
 
   while( Running )
   {
     X11ReadInput(Monitors, &MainWindow, KeyboardState, &Running);
-    if( KeyboardState[KEY_ESCAPE] )
-    {
-      Running = 0;
-    }
+    if( KeyboardState[KEY_ESCAPE] ) { Running = 0; }
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -646,7 +653,6 @@ int main(void)
     GLMatrixTranspose( RenderWorldMatrix, WorldMatrix);
     GLMatrixTranspose( RenderViewMatrix, CameraViewMatrix);
     GLMatrixTranspose( RenderProjectionMatrix, ProjectionMatrix);
-
 
     glUseProgram( ShaderProgram );
 
@@ -663,21 +669,23 @@ int main(void)
     if( ViewMatrixShaderVarLocation != -1 ) {
       glUniformMatrix4fv( ViewMatrixShaderVarLocation, 1, false, RenderViewMatrix );
     } else {
-      LogFatal(ERROR, "World matrix not set in shader ");
+      LogFatal(ERROR, "View matrix not set in shader ");
     }
 
     if( ProjectionMatrixShaderVarLocation != -1 ) {
       glUniformMatrix4fv( ProjectionMatrixShaderVarLocation, 1, false, RenderProjectionMatrix );
     } else {
-      LogFatal(ERROR, "World matrix not set in shader ");
+      LogFatal(ERROR, "Projection matrix not set in shader ");
     }
 
+    /*
     GLPrintMatrix16(RenderWorldMatrix, "World");
     GLPrintMatrix16(RenderViewMatrix, "View" );
-    GLPrintMatrix16(RenderProjectionMatrix, "Projection");
+    GLPrintMatrix16(RenderProjectionMatrix, "Projection" );
+    */
 
     glBindVertexArray( TriangleModel.VertexArrayId );
-    glDrawElements(GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);
+    glDrawElements( GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);
 
     glXSwapBuffers(Monitors, MainWindow);
   }

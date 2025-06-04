@@ -322,6 +322,7 @@ b32 InitializeOpenGL( Display *MainVideoDisplay,/* Window win, */s32 ScreenWidth
   }
 
   GLBuildIdentityMatrix( WorldMatrix );
+
   f32 FieldOfView = 3.14159265358979323846f / 4.0f;
   f32 ScreenAspect = (f32)ScreenWidth/(f32)ScreenHeight;
 

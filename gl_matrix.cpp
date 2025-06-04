@@ -90,28 +90,30 @@ void GLMatrixRotationZ(f32 *Matrix, f32 Angle)
   Matrix[15] = 1.0f;
 }
 
+
 void GLMatrixTranspose(f32 *Result, f32 *Matrix)
 {
-  Result[0] = Matrix[0];
-  Result[1] = Matrix[4];
-  Result[2] = Matrix[8];
-  Result[3] = Matrix[12];
+    Result[0]  = Matrix[0];
+    Result[1]  = Matrix[4];
+    Result[2]  = Matrix[8];
+    Result[3]  = Matrix[12];
 
-  Result[4] = Matrix[1];
-  Result[5] = Matrix[5];
-  Result[6] = Matrix[9];
-  Result[7] = Matrix[13];
+    Result[4]  = Matrix[1];
+    Result[5]  = Matrix[5];
+    Result[6]  = Matrix[9];
+    Result[7]  = Matrix[13];
 
-  Result[8] =  Matrix[2];
-  Result[9] =  Matrix[6];
-  Result[10] = Matrix[10];
-  Result[11] = Matrix[14];
+    Result[8]  = Matrix[2];
+    Result[9]  = Matrix[6];
+    Result[10] = Matrix[10];
+    Result[11] = Matrix[14];
 
-  Result[12] = Matrix[3];
-  Result[13] = Matrix[7];
-  Result[14] = Matrix[11];
-  Result[15] = Matrix[15];
+    Result[12] = Matrix[3];
+    Result[13] = Matrix[7];
+    Result[14] = Matrix[11];
+    Result[15] = Matrix[15];
 }
+
 
 void GLMatrixMultiply(f32 *Result, f32 *Matrix1, f32 *Matrix2)
 {
@@ -291,31 +293,27 @@ void GLBuildIdentityMatrix(f32 *Matrix)
   Matrix[15] = 1.0f;
 }
 
-void GLBuildPerspectiveFovMatrix(f32 *Matrix,
-                                 f32 FieldOfView,
-                                 f32 ScreenAspect,
-                                 f32 ScreenNear,
-                                 f32 ScreenDepth
-                                 )
+                                                                    //1.33           0.33
+void GLBuildPerspectiveFovMatrix(f32 *Matrix, f32 FieldOfView, f32 ScreenAspect, f32 ScreenNear, f32 ScreenDepth)
 {
-  Matrix[0] = 1.0f / (ScreenAspect * tan(FieldOfView * 0.5f));
-  Matrix[1] = 0.0f;
-  Matrix[2] = 0.0f;
-  Matrix[3] = 0.0f;
+  Matrix[0]  = 1.0f / (ScreenAspect * tan(FieldOfView * 0.5f));
+  Matrix[1]  = 0.0f;
+  Matrix[2]  = 0.0f;
+  Matrix[3]  = 0.0f;
 
-  Matrix[4] = 0.0f;
-  Matrix[5] = 1.0f / tan(FieldOfView * 0.5f);
-  Matrix[6] = 0.0f;
-  Matrix[7] = 0.0f;
+  Matrix[4]  = 0.0f;
+  Matrix[5]  = 1.0f / tan(FieldOfView * 0.5f);
+  Matrix[6]  = 0.0f;
+  Matrix[7]  = 0.0f;
 
-  Matrix[8] = 0.0f;
-  Matrix[9] = 0.0f;
-  Matrix[10] = ScreenDepth/(ScreenDepth - ScreenNear);
+  Matrix[8]  = 0.0f;
+  Matrix[9]  = 0.0f;
+  Matrix[10] = ScreenDepth / (ScreenDepth - ScreenNear);
   Matrix[11] = 1.0f;
 
   Matrix[12] = 0.0f;
   Matrix[13] = 0.0f;
-  Matrix[14] = (-ScreenNear * ScreenDepth)/(ScreenDepth - ScreenNear);
+  Matrix[14] = (-ScreenNear * ScreenDepth) / (ScreenDepth - ScreenNear);
   Matrix[15] = 0.0f;
 }
 
