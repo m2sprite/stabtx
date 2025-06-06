@@ -306,14 +306,6 @@ glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
 
   Result.Verticies = Floats;
 
-  for(size_t i = 0; i < VertexCount; ++i)
-  {
-    printf("v %f\n", Result.Verticies[i].x);
-    printf("v %f\n", Result.Verticies[i].y);
-    printf("v %f\n", Result.Verticies[i].z);
-    printf("------------\n");
-  }
-
   if( !Result.Verticies )
   {
     LogFatal(ERROR, "Vertex buffer creation failed");
@@ -330,12 +322,6 @@ glModel_t GiveGlModel( u32 VertexCount, u32 IndexCount, vertex_t *Floats) {
   for(u32 i = 0; i < IndexCount; ++i)
   {
     Result.Indecies[i] = i;
-  }
-
-  for(size_t i = 0; i < IndexCount; ++i)
-  {
-    printf("i %u \n", Result.Indecies[i]);
-    printf("------------\n");
   }
 
   Result.IndexCount = IndexCount;
@@ -516,12 +502,8 @@ void Vec3f32Print( vec3F32_t Vector )
 
 void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3F32_t Up)
 {
-  Vec3f32Print(Up);
-  Vec3f32Print(Position);
-  Vec3f32Print(LookAt);
   vec3F32_t zAxis = Vec3f32Subtract( LookAt, Position );
   f32 Dot = Vec3Dot(zAxis, zAxis);
-  printf("Dot %f\n", sqrt(Dot));
   zAxis.x /= sqrt(Dot);
   zAxis.y /= sqrt(Dot);
   zAxis.z /= sqrt(Dot);
@@ -537,7 +519,6 @@ void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3
   f32 Result2 = Vec3Dot(yAxis, Position) * -1.0f;
   f32 Result3 = Vec3Dot(zAxis, Position) * -1.0f;
 
-  printf( "%f %f %f \n", Result1, Result2, Result3 );
   Dest[0]  = xAxis.x;
   Dest[1]  = yAxis.x;
   Dest[2]  = zAxis.x;
@@ -584,9 +565,6 @@ int main(void)
 
   InitializeOpenGL( Monitors, ScreenWidth, ScreenHeight, SCREEN_NEAR, SCREEN_DEPTH, VSYNC_ENABLED, WorldMatrix, ProjectionMatrix, OrthoMatrix);
 
-  GLPrintMatrix16(WorldMatrix, "WorldMatrix");
-  GLPrintMatrix16(ProjectionMatrix, "ProjectionMatrix" );
-  GLPrintMatrix16(OrthoMatrix, "OrthoMatrix" );
 
   //TODO:Make a single buffer that loads both files and give pointers to offsets in the buffer
   shaderFile_t vsFile = LoadFileIntoBufferWithNullDelim("color.vs");
@@ -619,7 +597,7 @@ int main(void)
   f32 CameraRotationMatrix[9];
   vec3F32_t CameraUp = vec3f32(0.0f, 1.0f, 0.0f);
   vec3F32_t CameraLookAt = vec3f32(0.0f, 0.0f, 1.0f);
-  vec3F32_t CameraPosition = vec3f32(0.0f,0.0f, -0.5f);
+  vec3F32_t CameraPosition = vec3f32(0.0f,0.0f, -5.0f);
   vec3F32_t CameraRotation = vec3f32(0.0f,0.0f,0.0f);
 
   SetCameraRotationMatrix( CameraRotationMatrix, CameraRotation.x, CameraRotation.y,  CameraRotation.z );
@@ -628,9 +606,8 @@ int main(void)
   TransformVec3f32( &CameraUp, CameraRotationMatrix );
   Vec3f32Offset( &CameraLookAt, CameraPosition );
   BuildViewMatrix( CameraViewMatrix , CameraPosition, CameraLookAt, CameraUp );
-  GLPrintMatrix16( CameraViewMatrix, "View Mtarix" );
 
-  f32 TrianglePos[9] = { -0.1f, -0.1f, 0.0f, 0.0f, 0.1f, 0.0f, 0.1f, -0.1f, 0.0f };
+  f32 TrianglePos[9] = { -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 0.0f };
 
   triangle_t Triangle = GiveTriangleSignleColor( TrianglePos, 0.0f, 0.0f, 1.0f );
   glModel_t TriangleModel = GiveGlModel( 3, 3,  Triangle.Verticies );
@@ -677,12 +654,6 @@ int main(void)
     } else {
       LogFatal(ERROR, "Projection matrix not set in shader ");
     }
-
-    /*
-    GLPrintMatrix16(RenderWorldMatrix, "World");
-    GLPrintMatrix16(RenderViewMatrix, "View" );
-    GLPrintMatrix16(RenderProjectionMatrix, "Projection" );
-    */
 
     glBindVertexArray( TriangleModel.VertexArrayId );
     glDrawElements( GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);

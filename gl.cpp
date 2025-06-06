@@ -300,7 +300,7 @@ void TurnZBufferOff(void)
 
 b32 InitializeOpenGL( Display *MainVideoDisplay,/* Window win, */s32 ScreenWidth, s32 ScreenHeight, f32 ScreenNear, f32 ScreenDepth, b32 Vsync,  f32 WorldMatrix[16], f32 ProjectionMatrix[16], f32 OrthoMatrix[16] )
 {
-  if(!LoadOpenGLExtensionList())
+  if( LoadOpenGLExtensionList() == false )
   {
     LogFatal(ERROR, "Failed to Load OpenGL functions");
   }
@@ -312,7 +312,7 @@ b32 InitializeOpenGL( Display *MainVideoDisplay,/* Window win, */s32 ScreenWidth
   glCullFace(GL_BACK);
   GLXDrawable Drawable = glXGetCurrentDrawable();
 
-  if(Vsync)
+  if( Vsync == true )
   {
     glXSwapIntervalEXT( MainVideoDisplay, Drawable, 1);
   }
@@ -327,8 +327,7 @@ b32 InitializeOpenGL( Display *MainVideoDisplay,/* Window win, */s32 ScreenWidth
   f32 ScreenAspect = (f32)ScreenWidth/(f32)ScreenHeight;
 
   GLBuildPerspectiveFovMatrix( ProjectionMatrix, FieldOfView, ScreenAspect, ScreenNear, ScreenDepth );
-  GLBuildOrthoMatrix( OrthoMatrix, (f32)ScreenHeight, (f32)ScreenHeight, ScreenNear, ScreenDepth);
-
+  GLBuildOrthoMatrix( OrthoMatrix, (f32)ScreenWidth, (f32)ScreenHeight, ScreenNear, ScreenDepth);
   return true;
 }
 
