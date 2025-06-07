@@ -222,6 +222,60 @@ typedef struct {
   size_t Size;
 } shaderFile_t;
 
+typedef struct {
+  char *Buffer;
+  char *VertexShader;
+  char *FragmentShader;
+  size_t CharCountNoNull;
+  size_t Size;
+} shaderFiles_t;
+
+shaderFiles_t LoadShaderPair( const char *VsFileName,  const char *FsFileName )
+{
+  shaderFile_t Result = {};
+  FILE *VsFile = fopen( FileName, "rb" );
+  FILE *FsFile = fopen( FileName, "rb" );
+
+  if( VsFile && FsFile )
+  {
+    fseek(VsFile, 0, SEEK_END);
+    fseek(FsFile, 0, SEEK_END);
+    size_t VsFileSize = ftell(VsFile);
+    size_t FsFileSize = ftell(FsFile);
+    size_t BytesToAlloc = VsFileSize+FsFileSize+2;
+    rewind(VsFile);
+    rewind(FsFile);
+    Result.Buffer = (char *)malloc(BytesToAlloc);
+    if(!Result.Buffer)
+    {
+      LogFatal( ERROR, "Failed to create buffer to read %s into", FileName );
+    }
+    Result.Size = BytesToAlloc;
+    Result.CharCountNoNulls = BytesToAlloc-2;
+    Result.VertexShader = Result.Buffer;
+    Result.FramentShader = Result.Buffer+VsFileSize+1;
+    fread(Result.VertexShader, 1, VsFileSize, VsFile);
+    Result.VertexShader[VsFileSize] = '\0';
+    fread(Result.FragmentShader, 1, FsFileSize, FsFile);
+    Result.FragmentShader[FsFileSize] = '\0';
+    fclose( VsFile );
+    fclose( FsFile );
+  }
+  else
+  {
+    if( !VsFile )
+    {
+      LogFatal( ERROR, "Failed to read in file %s", VsFileName );
+    }
+
+    if( !FsFile )
+    {
+      LogFatal( ERROR, "Failed to read in file %s", FsFileName );
+    }
+  }
+  return(Result);
+}
+
 shaderFile_t LoadFileIntoBufferWithNullDelim( const char *FileName )
 {
   shaderFile_t Result = {};
@@ -351,7 +405,6 @@ triangle_t GiveTriangleSignleColor( f32 Pos[9], f32 R, f32 G, f32 B )
 
 void glIfyModlel( glModel_t *Model )
 {
-
   glGenVertexArrays( 1, &Model->VertexArrayId );
   glBindVertexArray( Model->VertexArrayId );
 
@@ -375,6 +428,16 @@ void glIfyModlel( glModel_t *Model )
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, Model->IndexCount * sizeof(u32), Model->Indecies, GL_STATIC_DRAW);
 
   free( Model->Indecies );
+}
+
+void deglifyModel( glModel_t *Model )
+{
+  glBindVertexArray(0);
+  glDeleteVertexArrays(1, &Model->VertexArrayId);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glDeleteBuffers(1, &Model->VertexBufferId);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  glDeleteBuffers(1, &Model->IndexBufferId);
 }
 
 struct vec3F32_t {
@@ -540,6 +603,14 @@ void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3
   Dest[15] = 1.0f;
 }
 
+u32 GiveShaderProgramFromShaderFilename(const char *VertexShaderFileName, const char *FragmentShaderFileName)
+{
+  shaderFile_t textrueVertexShaderFile = LoadFileIntoBufferWithNullDelim(VertexShaderFileName);
+  shaderFile_t textrueFragmentShaderFile = LoadFileIntoBufferWithNullDelim(FragmentShaderFileName);
+
+}
+
+
 int main(void)
 {
   s32 ScreenWidth;
@@ -569,6 +640,10 @@ int main(void)
   //TODO:Make a single buffer that loads both files and give pointers to offsets in the buffer
   shaderFile_t vsFile = LoadFileIntoBufferWithNullDelim("color.vs");
   shaderFile_t fsFile = LoadFileIntoBufferWithNullDelim("color.fs");
+
+
+
+
 
   u32 VertexShader = glCreateShader(GL_VERTEX_SHADER);
   u32 FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -616,6 +691,7 @@ int main(void)
 
   while( Running )
   {
+
     X11ReadInput(Monitors, &MainWindow, KeyboardState, &Running);
     if( KeyboardState[KEY_ESCAPE] ) { Running = 0; }
 
@@ -625,7 +701,6 @@ int main(void)
     f32 RenderWorldMatrix[16] = {};
     f32 RenderViewMatrix[16] = {};
     f32 RenderProjectionMatrix[16] = {};
-
 
     GLMatrixTranspose( RenderWorldMatrix, WorldMatrix);
     GLMatrixTranspose( RenderViewMatrix, CameraViewMatrix);
@@ -655,11 +730,17 @@ int main(void)
       LogFatal(ERROR, "Projection matrix not set in shader ");
     }
 
+    //GL DRAW MODEL
     glBindVertexArray( TriangleModel.VertexArrayId );
     glDrawElements( GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);
 
+    //END SCENE
     glXSwapBuffers(Monitors, MainWindow);
   }
+
+  deglifyModel( &TriangleModel );
+  //shutdown model buffers
+
 
   glDetachShader(ShaderProgram, VertexShader);
   glDetachShader(ShaderProgram, FragmentShader);
