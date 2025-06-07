@@ -226,15 +226,15 @@ typedef struct {
   char *Buffer;
   char *VertexShader;
   char *FragmentShader;
-  size_t CharCountNoNull;
+  size_t CharCountNoNulls;
   size_t Size;
 } shaderFiles_t;
 
-shaderFiles_t LoadShaderPair( const char *VsFileName,  const char *FsFileName )
+shaderFiles_t LoadShaderSrcFilePair( const char *VsFileName,  const char *FsFileName )
 {
-  shaderFile_t Result = {};
-  FILE *VsFile = fopen( FileName, "rb" );
-  FILE *FsFile = fopen( FileName, "rb" );
+  shaderFiles_t Result = {};
+  FILE *VsFile = fopen( VsFileName, "rb" );
+  FILE *FsFile = fopen( FsFileName, "rb" );
 
   if( VsFile && FsFile )
   {
@@ -248,12 +248,12 @@ shaderFiles_t LoadShaderPair( const char *VsFileName,  const char *FsFileName )
     Result.Buffer = (char *)malloc(BytesToAlloc);
     if(!Result.Buffer)
     {
-      LogFatal( ERROR, "Failed to create buffer to read %s into", FileName );
+      LogFatal( ERROR, "Failed to create buffer to read shaders into" );
     }
     Result.Size = BytesToAlloc;
     Result.CharCountNoNulls = BytesToAlloc-2;
     Result.VertexShader = Result.Buffer;
-    Result.FramentShader = Result.Buffer+VsFileSize+1;
+    Result.FragmentShader = Result.Buffer+VsFileSize+1;
     fread(Result.VertexShader, 1, VsFileSize, VsFile);
     Result.VertexShader[VsFileSize] = '\0';
     fread(Result.FragmentShader, 1, FsFileSize, FsFile);
@@ -562,7 +562,6 @@ void Vec3f32Print( vec3F32_t Vector )
   printf( "x %f y %f z %f\n", Vector.x,Vector.y,Vector.z);
 }
 
-
 void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3F32_t Up)
 {
   vec3F32_t zAxis = Vec3f32Subtract( LookAt, Position );
@@ -603,11 +602,46 @@ void BuildViewMatrix( f32 Dest[16], vec3F32_t Position , vec3F32_t LookAt , vec3
   Dest[15] = 1.0f;
 }
 
-u32 GiveShaderProgramFromShaderFilename(const char *VertexShaderFileName, const char *FragmentShaderFileName)
-{
-  shaderFile_t textrueVertexShaderFile = LoadFileIntoBufferWithNullDelim(VertexShaderFileName);
-  shaderFile_t textrueFragmentShaderFile = LoadFileIntoBufferWithNullDelim(FragmentShaderFileName);
+struct shaderPorgramComps_t {
+  u32 Program;
+  u32 VertexShader;
+  u32 FragmentShader;
+};
 
+shaderPorgramComps_t GiveShaderProgramFromShaderFilename(const char *VertexShaderFileName, const char *FragmentShaderFileName, const char *ShaderAttribOne, const char *ShaderAttribTwo )
+{
+  shaderFiles_t ShaderSrcFilePair = LoadShaderSrcFilePair(VertexShaderFileName, FragmentShaderFileName);
+  shaderPorgramComps_t Result;
+  Result.VertexShader = glCreateShader(GL_VERTEX_SHADER);
+  Result.FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glCompileShader(Result.VertexShader);
+  glCompileShader(Result.FragmentShader);
+
+  CheckShader(Result.VertexShader, GL_COMPILE_STATUS ,"Vertex", "compile");
+  CheckShader(Result.FragmentShader, GL_COMPILE_STATUS ,"Fragment", "compile");
+
+  Result.Program = glCreateProgram();
+  glAttachShader(Result.Program, Result.VertexShader);
+  glAttachShader(Result.Program, Result.FragmentShader);
+
+  glBindAttribLocation( Result.Program, 0, ShaderAttribOne );
+  glBindAttribLocation( Result.Program, 1, ShaderAttribTwo );
+
+  glLinkProgram( Result.Program );
+  CheckProgram( Result.Program, GL_LINK_STATUS, "Porgram", "link" );
+  free( ShaderSrcFilePair.Buffer );
+  return( Result );
+}
+
+
+internal inline void
+KillShader( shaderPorgramComps_t *Comps )
+{
+  glDetachShader( Comps->Program, Comps->VertexShader );
+  glDetachShader( Comps->Program, Comps->FragmentShader );
+  glDeleteShader(Comps->VertexShader);
+  glDeleteShader(Comps->FragmentShader);
+  glDeleteProgram(Comps->Program);
 }
 
 
@@ -637,33 +671,8 @@ int main(void)
   InitializeOpenGL( Monitors, ScreenWidth, ScreenHeight, SCREEN_NEAR, SCREEN_DEPTH, VSYNC_ENABLED, WorldMatrix, ProjectionMatrix, OrthoMatrix);
 
 
-  //TODO:Make a single buffer that loads both files and give pointers to offsets in the buffer
-  shaderFile_t vsFile = LoadFileIntoBufferWithNullDelim("color.vs");
-  shaderFile_t fsFile = LoadFileIntoBufferWithNullDelim("color.fs");
-
-
-
-
-
-  u32 VertexShader = glCreateShader(GL_VERTEX_SHADER);
-  u32 FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-
-  glShaderSource(VertexShader, 1, &vsFile.Buffer, 0);
-  glShaderSource(FragmentShader, 1, &fsFile.Buffer, 0);
-
-  glCompileShader(VertexShader);
-  glCompileShader(FragmentShader);
-  CheckShader(VertexShader, GL_COMPILE_STATUS ,"Vertex", "compile");
-  CheckShader(FragmentShader, GL_COMPILE_STATUS ,"Fragment", "compile");
-
-  u32 ShaderProgram = glCreateProgram();
-  glAttachShader(ShaderProgram, VertexShader);
-  glAttachShader(ShaderProgram, FragmentShader);
-
-  glBindAttribLocation( ShaderProgram, 0, "inputPosition" );
-  glBindAttribLocation( ShaderProgram, 1, "inputColor" );
-  glLinkProgram( ShaderProgram );
-  CheckProgram( ShaderProgram, GL_LINK_STATUS, "ShaderPorgram", "link" );
+  shaderPorgramComps_t ColorShader = GiveShaderProgramFromShaderFilename( "color.vs", "color.fs", "inputPosition", "inputColor" );
+  shaderPorgramComps_t TextureShader = GiveShaderProgramFromShaderFilename( "texture.vs", "texture.fs", "inputPosition", "inputTexCoord" );
 
   b32 KeyboardState[KEY_SUPPORT_COUNT] = {0};
   MEMORYZEROARRAY(KeyboardState);
@@ -706,11 +715,12 @@ int main(void)
     GLMatrixTranspose( RenderViewMatrix, CameraViewMatrix);
     GLMatrixTranspose( RenderProjectionMatrix, ProjectionMatrix);
 
-    glUseProgram( ShaderProgram );
+    glUseProgram( TextureShader.Program );
 
-    s32 WorldMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "worldMatrix" );
-    s32 ViewMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "viewMatrix" );
-    s32 ProjectionMatrixShaderVarLocation = glGetUniformLocation( ShaderProgram, "projectionMatrix" );
+    s32 WorldMatrixShaderVarLocation = glGetUniformLocation( TextureShader.Program, "worldMatrix" );
+    s32 ViewMatrixShaderVarLocation = glGetUniformLocation( TextureShader.Program, "viewMatrix" );
+    s32 ProjectionMatrixShaderVarLocation = glGetUniformLocation( TextureShader.Program , "projectionMatrix" );
+    s32 TextureUniformVarLocation = glGetUniformLocation( TextureShader.Program, "shaderTexture" );
 
     if( WorldMatrixShaderVarLocation != -1 ) {
       glUniformMatrix4fv( WorldMatrixShaderVarLocation, 1, false, RenderWorldMatrix );
@@ -730,6 +740,12 @@ int main(void)
       LogFatal(ERROR, "Projection matrix not set in shader ");
     }
 
+    if( TextureUniformVarLocation != -1 ) {
+      glUniform1i(TextureUniformVarLocation, 0);
+    } else {
+      LogFatal(ERROR, "Texture not set in shader");
+    }
+
     //GL DRAW MODEL
     glBindVertexArray( TriangleModel.VertexArrayId );
     glDrawElements( GL_TRIANGLES, TriangleModel.IndexCount, GL_UNSIGNED_INT, 0);
@@ -739,14 +755,8 @@ int main(void)
   }
 
   deglifyModel( &TriangleModel );
-  //shutdown model buffers
-
-
-  glDetachShader(ShaderProgram, VertexShader);
-  glDetachShader(ShaderProgram, FragmentShader);
-  glDeleteShader(VertexShader);
-  glDeleteShader(FragmentShader);
-  glDeleteProgram(ShaderProgram);
+  KillShader(&ColorShader);
+  KillShader(&TextureShader);
 
   glXMakeCurrent(Monitors, None, NULL);
   glXDestroyContext(Monitors, RenderingContext);
